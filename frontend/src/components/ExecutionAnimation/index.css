@@ -1,0 +1,33 @@
+.execution-animation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.execution-animation .step-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.execution-animation .step-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.execution-animation .step-item:hover {
+  background-color: #f0f0f0;
+}
+
+.execution-animation .step-item.active {
+  background-color: #e6f7ff;
+  border-left: 3px solid #1890ff;
+}
+
+.execution-animation .step-item.completed {
+  background-color: #f6ffed;
+}
+
+.execution-animation .variable-panel {
+  width: 300px;
+}
