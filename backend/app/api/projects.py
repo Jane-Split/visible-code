@@ -34,6 +34,31 @@ class ProjectResponse(BaseModel):
     class Config:
         from_attributes = True
 
+    @classmethod
+    def from_orm(cls, project):
+        """从 ORM 对象创建响应，处理 languages 字段"""
+        import json
+        data = {
+            "id": project.id,
+            "name": project.name,
+            "source_type": project.source_type,
+            "source_url": project.source_url,
+            "local_path": project.local_path,
+            "current_branch": project.current_branch,
+            "status": project.status,
+            "last_synced_at": project.last_synced_at,
+            "created_at": project.created_at,
+        }
+        # 处理 languages 字段
+        if project.languages:
+            try:
+                data["languages"] = json.loads(project.languages) if isinstance(project.languages, str) else project.languages
+            except json.JSONDecodeError:
+                data["languages"] = []
+        else:
+            data["languages"] = []
+        return cls(**data)
+
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     branch: Optional[str] = None
@@ -80,7 +105,7 @@ async def create_project(
     db.commit()
     db.refresh(db_project)
 
-    return db_project
+    return ProjectResponse.from_orm(db_project)
 
 @router.get("/", response_model=List[ProjectResponse])
 async def list_projects(
@@ -90,7 +115,7 @@ async def list_projects(
 ):
     """获取项目列表"""
     projects = db.query(Project).offset(skip).limit(limit).all()
-    return projects
+    return [ProjectResponse.from_orm(p) for p in projects]
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
@@ -101,7 +126,7 @@ async def get_project(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    return project
+    return ProjectResponse.from_orm(project)
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
 async def update_project(
@@ -132,7 +157,7 @@ async def update_project(
     db.commit()
     db.refresh(project)
 
-    return project
+    return ProjectResponse.from_orm(project)
 
 @router.delete("/{project_id}")
 async def delete_project(

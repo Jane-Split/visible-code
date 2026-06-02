@@ -217,13 +217,31 @@ class BaseAnalyzer(ABC):
         """链接依赖关系
 
         将依赖中的 target_name 映射到 target_id
+        对于未找到的目标，创建虚拟外部实体
         """
+        external_entities = {}  # target_name -> entity_id
+
         for dep in self.dependencies:
             if not dep.target_id and dep.target_name:
                 # 尝试通过名称查找目标实体
                 target_entity = self.entity_map.get(dep.target_name)
                 if target_entity:
                     dep.target_id = target_entity.id
+                else:
+                    # 创建虚拟外部实体
+                    if dep.target_name not in external_entities:
+                        external_entity = CodeEntity(
+                            name=dep.target_name.split('.')[-1] if '.' in dep.target_name else dep.target_name,
+                            qualified_name=dep.target_name,
+                            type="external",
+                            file_path="",
+                            start_line=0,
+                            end_line=0
+                        )
+                        self.add_entity(external_entity)
+                        external_entities[dep.target_name] = external_entity.id
+
+                    dep.target_id = external_entities[dep.target_name]
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典

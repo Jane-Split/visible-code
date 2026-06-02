@@ -156,11 +156,34 @@ class TypeScriptAnalyzer(BaseAnalyzer):
             re.MULTILINE
         )
 
+        # 为当前文件创建一个模块实体作为 import 的 source
+        module_name = self._get_module_name(file_path)
+        module_entity = None
+
+        # 检查是否已存在该文件的模块实体
+        for entity in self.entities:
+            if entity.file_path == file_path and entity.type == "module":
+                module_entity = entity
+                break
+
+        # 如果不存在，创建模块实体
+        if not module_entity:
+            module_entity = CodeEntity(
+                name=module_name,
+                qualified_name=module_name,
+                type="module",
+                file_path=file_path,
+                start_line=1,
+                end_line=source_code.count('\n') + 1
+            )
+            self.add_entity(module_entity)
+
         for match in import_pattern.finditer(source_code):
             imported_path = match.group(4)
             line = source_code[:match.start()].count('\n') + 1
 
             self.dependencies.append(Dependency(
+                source_id=module_entity.id,  # 设置 source_id 为模块实体
                 target_name=imported_path,
                 type="import",
                 file_path=file_path,

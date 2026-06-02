@@ -115,12 +115,42 @@ class JavaAnalyzer(BaseAnalyzer):
     def _extract_imports(self, source_code: str, file_path: str) -> List[str]:
         """提取导入声明"""
         imports = []
+
+        # 为当前文件创建一个模块实体作为 import 的 source
+        package_name = self._extract_package(source_code)
+        class_match = re.search(r'(class|interface|enum)\s+(\w+)', source_code)
+        if class_match:
+            class_name = class_match.group(2)
+            module_name = f"{package_name}.{class_name}" if package_name else class_name
+        else:
+            module_name = os.path.basename(file_path).replace('.java', '')
+
+        # 检查是否已存在该文件的模块实体
+        module_entity = None
+        for entity in self.entities:
+            if entity.file_path == file_path and entity.type == "module":
+                module_entity = entity
+                break
+
+        # 如果不存在，创建模块实体
+        if not module_entity:
+            module_entity = CodeEntity(
+                name=module_name,
+                qualified_name=module_name,
+                type="module",
+                file_path=file_path,
+                start_line=1,
+                end_line=source_code.count('\n') + 1
+            )
+            self.add_entity(module_entity)
+
         for match in self.IMPORT_PATTERN.finditer(source_code):
             imported = match.group(1)
             imports.append(imported)
 
-            # 添加 import 依赖
+            # 添加 import 依赖，设置 source_id
             self.dependencies.append(Dependency(
+                source_id=module_entity.id,
                 target_name=imported,
                 type="import",
                 file_path=file_path,

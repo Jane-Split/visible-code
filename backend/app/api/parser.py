@@ -48,7 +48,15 @@ async def start_parse(
 
     # 后台执行解析
     async def parse_task():
+        # 在后台任务中创建新的数据库会话
+        from app.core.database import SessionLocal
+        db_session = SessionLocal()
         try:
+            # 重新获取项目对象
+            project = db_session.query(Project).filter(Project.id == project_id).first()
+            if not project:
+                return
+
             # 执行解析
             result = await parse_scheduler.parse_project(
                 project_id,
@@ -61,11 +69,10 @@ async def start_parse(
             deps_data = result.get("dependencies", [])
 
             # 清除旧数据
-            db.query(Entity).filter(Entity.project_id == project_id).delete()
-            db.query(Dependency).filter(Dependency.project_id == project_id).delete()
+            db_session.query(Entity).filter(Entity.project_id == project_id).delete()
+            db_session.query(Dependency).filter(Dependency.project_id == project_id).delete()
 
             # 插入新实体
-            entity_id_map = {}  # 旧ID -> 新ID
             for e_data in entities_data:
                 entity = Entity(
                     id=e_data["id"],
@@ -81,10 +88,9 @@ async def start_parse(
                     signature=e_data.get("signature", ""),
                     docstring=e_data.get("docstring", "")
                 )
-                db.add(entity)
-                entity_id_map[e_data["id"]] = e_data["id"]
+                db_session.add(entity)
 
-            # 插入依赖关系（简化：直接使用名称映射）
+            # 插入依赖关系
             for d_data in deps_data:
                 dep = Dependency(
                     id=d_data["id"],
@@ -95,19 +101,30 @@ async def start_parse(
                     file_path=d_data.get("file_path", ""),
                     line=d_data.get("line", 0)
                 )
-                db.add(dep)
+                db_session.add(dep)
 
-            db.commit()
+            db_session.commit()
 
             # 更新项目状态
             project.status = "ready"
             project.languages = json.dumps(request.languages or ["java", "typescript"])
-            db.commit()
+            db_session.commit()
 
         except Exception as e:
-            project.status = "error"
-            db.commit()
+            db_session.rollback()
+            # 尝试更新项目状态为错误
+            try:
+                project = db_session.query(Project).filter(Project.id == project_id).first()
+                if project:
+                    project.status = "error"
+                    db_session.commit()
+            except:
+                pass
             print(f"解析失败: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            db_session.close()
 
     # 启动后台任务
     asyncio.create_task(parse_task())

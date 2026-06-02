@@ -152,11 +152,11 @@ class ParseScheduler:
             # 分析文件
             analyzer.analyze_file(file_path, source_code)
 
+            # 链接依赖关系（必须在 to_dict 之前）
+            analyzer.link_dependencies()
+
             # 获取结果
             result = analyzer.to_dict()
-
-            # 链接依赖关系
-            analyzer.link_dependencies()
 
             return result
 
