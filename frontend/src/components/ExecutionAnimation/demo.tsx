@@ -1,7 +1,9 @@
 import ExecutionAnimation from './index'
 
+import type { ExecutionStep } from './index'
+
 // 模拟执行步骤
-const demoSteps = [
+const demoSteps: ExecutionStep[] = [
   {
     order: 0,
     line: 1,

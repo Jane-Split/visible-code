@@ -9,7 +9,7 @@ import {
   FastForwardOutlined,
 } from '@ant-design/icons'
 
-interface ExecutionStep {
+export interface ExecutionStep {
   order: number
   line: number
   action: string          // 'assign' | 'call' | 'return' | 'branch' | 'loop'
@@ -33,7 +33,7 @@ export default function ExecutionAnimation({
   const [currentStep, setCurrentStep] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const currentStepData = steps[currentStep] || null
 
@@ -216,10 +216,10 @@ export default function ExecutionAnimation({
                     key={i}
                     style={{
                       padding: '4px 8px',
-                      backgroundColor: i === currentStepData.callStack.length - 1 ? '#e6f7ff' : '#f5f5f5',
+                      backgroundColor: i === (currentStepData.callStack?.length || 0) - 1 ? '#e6f7ff' : '#f5f5f5',
                       marginBottom: 2,
                       fontSize: 12,
-                      borderLeft: i === currentStepData.callStack.length - 1 ? '2px solid #1890ff' : '2px solid transparent',
+                      borderLeft: i === (currentStepData.callStack?.length || 0) - 1 ? '2px solid #1890ff' : '2px solid transparent',
                     }}
                   >
                     {i === 0 ? '▶' : '  '} {frame}

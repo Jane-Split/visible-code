@@ -124,7 +124,70 @@ class GitOperator:
                 text=True,
                 timeout=10
             )
-            branches = [b.strip().replace("* ", "") for b in result.stdout.strip().split("\n")]
+            branches = [b.strip().replace("* ", "") for b in result.stdout.strip().split("\n") if b.strip()]
             return branches
         except subprocess.CalledProcessError as e:
             raise GitOperationError(f"获取分支失败: {e.stderr}")
+
+    def list_branches(self, repo_path: str) -> tuple:
+        """列出所有分支并返回当前分支
+        
+        Returns:
+            (branches_list, current_branch)
+        """
+        try:
+            result = subprocess.run(
+                ["git", "branch", "-a"],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            branches = []
+            current = ""
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("* "):
+                    current = line.replace("* ", "")
+                    branches.append(current)
+                else:
+                    branches.append(line)
+            return branches, current
+        except subprocess.CalledProcessError as e:
+            raise GitOperationError(f"获取分支失败: {e.stderr}")
+
+    def get_changed_files(self, repo_path: str, from_commit: str, to_commit: str) -> list:
+        """获取两个 commit 之间的变更文件列表
+        
+        Args:
+            repo_path: 仓库路径
+            from_commit: 起始 commit
+            to_commit: 结束 commit
+            
+        Returns:
+            [(file_path, change_type), ...] 变更文件列表
+        """
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-status", from_commit, to_commit],
+                cwd=repo_path,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            changes = []
+            for line in result.stdout.strip().split("\n"):
+                if not line.strip():
+                    continue
+                parts = line.split("\t")
+                if len(parts) >= 2:
+                    change_type = parts[0][0]  # A, M, D, R, etc.
+                    file_path = parts[1]
+                    changes.append((file_path, change_type))
+            return changes
+        except subprocess.CalledProcessError as e:
+            raise GitOperationError(f"获取变更文件失败: {e.stderr}")

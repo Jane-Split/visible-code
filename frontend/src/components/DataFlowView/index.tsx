@@ -27,7 +27,7 @@ export default function DataFlowView() {
   })
 
   // 模拟数据流数据
-  const mockDataFlow = {
+  const mockDataFlow: { nodes: DataFlowNode[]; edges: DataFlowEdge[] } = {
     nodes: [
       { id: 'request', name: 'HTTP Request', type: 'input', service: 'Gateway' },
       { id: 'validate', name: '参数校验', type: 'process', service: 'user-service' },

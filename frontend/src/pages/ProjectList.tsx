@@ -24,8 +24,8 @@ export default function ProjectList() {
   const fetchProjects = async () => {
     setLoading(true)
     try {
-      const data = await api.get('/projects')
-      setProjects(data)
+      const response = await api.get('/projects')
+      setProjects(response.data)
     } catch (error) {
       message.error('获取项目列表失败')
     } finally {
