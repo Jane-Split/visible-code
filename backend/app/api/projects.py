@@ -89,6 +89,13 @@ async def create_project(
             )
         except GitOperationError as e:
             raise HTTPException(status_code=400, detail=str(e))
+    elif project.source_type == "local":
+        # 本地项目直接使用 source_url 作为本地路径
+        from pathlib import Path
+        path = Path(project.source_url)
+        if not path.exists():
+            raise HTTPException(status_code=400, detail=f"本地目录不存在: {project.source_url}")
+        local_path = project.source_url
 
     db_project = Project(
         id=project_id,
