@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 import uuid
+import subprocess
 
 from app.core.database import get_db
 from app.core.git import GitOperator, GitOperationError
@@ -185,34 +186,72 @@ async def delete_project(
 @router.post("/{project_id}/sync")
 async def sync_project(
     project_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """同步项目（拉取最新代码）"""
+    """同步项目（Git 项目拉取最新代码，本地项目重新扫描）"""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    if project.source_type != "git" or not project.local_path:
-        raise HTTPException(status_code=400, detail="此项目类型不支持同步")
+    if project.source_type == "git":
+        if not project.local_path:
+            raise HTTPException(status_code=400, detail="项目本地路径不存在，请先克隆仓库")
 
-    git_op = GitOperator(REPOS_PATH)
-    try:
-        old_commit = git_op.get_current_commit(project.local_path)
-        git_op.fetch(project.local_path)
-        git_op.pull(project.local_path)
-        new_commit = git_op.get_current_commit(project.local_path)
+        from pathlib import Path
+        if not Path(project.local_path).exists():
+            raise HTTPException(status_code=400, detail=f"项目本地目录不存在: {project.local_path}")
 
-        # 更新状态
-        project.last_commit_hash = new_commit
+        git_op = GitOperator(REPOS_PATH)
+        try:
+            old_commit = git_op.get_current_commit(project.local_path)
+            git_op.fetch(project.local_path)
+            try:
+                git_op.pull(project.local_path)
+            except GitOperationError as pull_error:
+                # 如果 pull 失败（例如有本地冲突），尝试重置到远程分支
+                try:
+                    subprocess.run(
+                        ["git", "reset", "--hard", "origin/HEAD"],
+                        cwd=project.local_path,
+                        check=True,
+                        capture_output=True,
+                        timeout=60
+                    )
+                except Exception:
+                    raise pull_error
+            
+            new_commit = git_op.get_current_commit(project.local_path)
+
+            # 更新状态
+            project.last_commit_hash = new_commit
+            project.last_synced_at = datetime.utcnow()
+            project.status = "pending"  # 等待重新解析
+            db.commit()
+
+            return {
+                "message": "同步成功",
+                "old_commit": old_commit,
+                "new_commit": new_commit,
+                "has_changes": old_commit != new_commit
+            }
+        except GitOperationError as e:
+            raise HTTPException(status_code=400, detail=f"同步失败: {e}")
+    elif project.source_type == "local":
+        # 本地项目：验证路径是否存在，触发重新解析
+        from pathlib import Path
+        local_path = project.source_url
+        if not Path(local_path).exists():
+            raise HTTPException(status_code=400, detail=f"本地目录不存在: {local_path}")
+
+        project.local_path = local_path
         project.last_synced_at = datetime.utcnow()
-        project.status = "pending"  # 等待重新解析
+        project.status = "pending"
         db.commit()
 
         return {
-            "message": "同步成功",
-            "old_commit": old_commit,
-            "new_commit": new_commit,
-            "has_changes": old_commit != new_commit
+            "message": "同步成功，已标记为待重新解析",
+            "has_changes": True
         }
-    except GitOperationError as e:
-        raise HTTPException(status_code=400, detail=f"同步失败: {e}")
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的项目类型: {project.source_type}")

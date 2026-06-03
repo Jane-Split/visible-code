@@ -55,7 +55,7 @@ function ArchitectureViewInner() {
   const fetchGraph = async () => {
     setLoading(true)
     try {
-      const res = await api.get(`/projects/${projectId}/graphs/dependency`)
+      const res = await api.get(`/api/projects/${projectId}/graphs/dependency`)
       const data = res.data as GraphData
       setGraphData(data)
 

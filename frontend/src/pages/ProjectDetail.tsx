@@ -40,7 +40,7 @@ export default function ProjectDetail() {
     if (!projectId) return
     setLoading(true)
     try {
-      const response = await api.get(`/projects/${projectId}`)
+      const response = await api.get(`/api/projects/${projectId}`)
       setProject(response.data)
     } catch (error) {
       message.error('获取项目详情失败')
